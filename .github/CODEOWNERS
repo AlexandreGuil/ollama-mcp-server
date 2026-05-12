@@ -1,0 +1,5 @@
+# Every file requires review from the listed owner before merge.
+# Combined with branch protection (Require review from Code Owners),
+# this prevents unreviewed changes from landing on `main`.
+
+* @AlexandreGuil

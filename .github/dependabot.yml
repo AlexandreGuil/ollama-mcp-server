@@ -1,0 +1,24 @@
+# Dependabot configuration
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates
+#
+# Note on Python deps: this project declares dependencies inline via PEP 723
+# (the "/// script" header in ollama_mcp_server.py). Dependabot does not yet
+# parse that format, so only the GitHub Actions ecosystem is enabled here.
+# Bumps to `mcp` and `httpx` must be reviewed manually for now.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
