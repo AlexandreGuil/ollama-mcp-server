@@ -8,7 +8,9 @@ that bridges Claude Code (or any MCP-compatible client) to a **local
 [Ollama](https://ollama.com)** instance.
 
 The server exposes a single tool, `query_ollama`, that forwards a prompt to
-`http://localhost:11434` and returns the response. **No data leaves the machine.**
+`http://localhost:11434` and returns the response. With a local Ollama model,
+no data leaves your machine — see [How it works](#how-it-works) for the full
+picture (local vs `:cloud` models).
 
 ---
 
@@ -17,9 +19,52 @@ The server exposes a single tool, `query_ollama`, that forwards a prompt to
 - **Save cloud tokens.** Let Claude orchestrate the hard part and delegate the
   cheap, local-only steps (file summary, boilerplate, "explain this snippet")
   to a model running on your own hardware.
-- **Keep prompts on-machine.** The server speaks only to `localhost:11434`.
+- **Local by default.** With a local model (e.g. `qwen2.5-coder:14b`), nothing
+  leaves your machine. With a `:cloud` model the Ollama daemon proxies to
+  Ollama Cloud — see [How it works](#how-it-works).
 - **Zero config.** The script is one self-contained file (~80 lines, PEP 723
   inline dependencies). No `pip install`, no virtualenv to manage by hand.
+
+---
+
+## How it works
+
+The MCP server is a thin bridge between Claude Code and the Ollama HTTP API.
+What actually runs the inference depends on the model you pick.
+
+```
+┌─────────────┐
+│ Claude Code │
+└──────┬──────┘
+       │ MCP stdio: call `query_ollama` with {prompt, model}
+       ▼
+┌────────────────────────────────────────────┐
+│ ollama_mcp_server.py  (this MCP server)    │  always invoked
+└──────┬─────────────────────────────────────┘
+       │ HTTP POST http://localhost:11434/api/generate
+       │ {model, prompt, stream: false}
+       ▼
+┌─────────────────────────────────────┐
+│ Ollama daemon (running on your box) │  decides where inference happens
+└──────┬──────────────────────────────┘
+       │
+       ├─► local model (e.g. `qwen2.5-coder:14b`)
+       │   └─► inference runs on your CPU/GPU — prompt never leaves
+       │
+       └─► model with `:cloud` suffix (e.g. `gpt-oss:20b-cloud`)
+           └─► Ollama proxies to Ollama Cloud — prompt leaves your machine
+```
+
+| Step | What runs | Where it runs |
+|------|-----------|---------------|
+| 1 | MCP protocol over stdio | Claude Code spawns this script as a child process |
+| 2 | `ollama_mcp_server.py` (this repo) | Your machine, always |
+| 3 | HTTP POST to `localhost:11434/api/generate` | Your machine, always |
+| 4a | Inference for a local model (no `:cloud` suffix) | Your CPU/GPU — **prompt stays local** |
+| 4b | Inference for a `:cloud` model | Ollama Cloud — **prompt leaves your machine** |
+
+In short: the **bridge** is always local; the **model** decides whether the
+prompt is.
 
 ---
 
@@ -248,13 +293,17 @@ The server calls `POST /api/generate` on Ollama (non-streaming) and returns the
 
 ## Security notes
 
-- The server talks **only to `localhost`** — no outbound network traffic.
-- It is started as a **stdio** MCP child process by Claude Code; it does not
-  listen on any port itself.
-- Prompts passed to the tool are sent to your local Ollama instance verbatim.
-  If your prompts contain secrets, they end up in Ollama's logs (and possibly
-  in the model's context window if you have telemetry enabled in Ollama). Use
-  judgement.
+- The MCP server itself talks **only to `localhost:11434`** — no outbound
+  traffic. It is a stdio child process started by Claude Code and does not
+  listen on any port.
+- **Where prompts actually go depends on the model you pick.** A local model
+  (e.g. `qwen2.5-coder:14b`) keeps the prompt on your machine. A `:cloud`
+  model causes the Ollama daemon to proxy the request to Ollama Cloud — at
+  which point the prompt leaves your machine. See
+  [How it works](#how-it-works).
+- Prompts passed to the tool are sent to Ollama verbatim. If they contain
+  secrets, they end up in Ollama's logs (and possibly in the model's context
+  window if you have telemetry enabled in Ollama). Use judgement.
 - This project is provided **AS IS**, with no warranty. See [LICENSE](LICENSE).
 - To report a vulnerability privately, see [SECURITY.md](SECURITY.md).
 
