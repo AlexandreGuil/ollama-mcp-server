@@ -35,7 +35,7 @@ jobs:
 
       # github/codeql-action/init@v3.32.0
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@439137e1b50c27ba9e2f9befc93e43091b449c34
+        uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
